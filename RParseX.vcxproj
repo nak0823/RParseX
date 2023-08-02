@@ -131,9 +131,6 @@
     <ClCompile Include="RParseX.cpp" />
     <ClCompile Include="Scraper.cpp" />
   </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Ratlog.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
