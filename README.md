@@ -1,4 +1,7 @@
-<div align="center"
-  <img src="RParseX.png">
-  # RParseX StealerLogs Parser by Serialized
-  </div>
+![Image](RParseX.png)
+
+<div align="center">
+RParseX ~ Blazing fast stealerlogs parser by Serialized
+</div>
+
+
