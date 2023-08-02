@@ -7,27 +7,52 @@
 #include <Windows.h>
 #include <fstream>
 #include <algorithm>
+#include <chrono>
+#include <iomanip>
 
 namespace fs = std::filesystem;
 
-// Struct is used to store the important data that can be extracted from password files.
+// Checks if logs directory is valid.
+bool DirectoryExists(const std::string& path) {
+	DWORD attribute = GetFileAttributesA(path.c_str());
+	return (attribute != INVALID_FILE_ATTRIBUTES && (attribute & FILE_ATTRIBUTE_DIRECTORY));
+}
+
+std::string GetLogsLocation() {
+	std::string logsPath;
+
+	while (true) {
+		std::cout << "Enter the location of the logs: ";
+		std::getline(std::cin, logsPath);
+
+		if (!DirectoryExists(logsPath)) {
+			system("cls");
+			GetLogsLocation();
+		}
+
+		return logsPath;
+	}
+}
+
+// Struct to store data extracted from password files.
 struct Combo {
 	std::string Username;
 	std::string Password;
 	std::string Source;
 };
 
+// Formats Combo data as a string.
 std::string FormatCombo(const Combo& combo) {
 	return std::format("{}:{} | {}", combo.Username, combo.Password, combo.Source);
 }
 
 // Sets the title of the terminal.
-void ConsoleTitle(const std::string& title) {
+void SetConsoleTitle(const std::string& title) {
 	SetConsoleTitleA(title.c_str());
 }
 
-// Obtains all valid directories that include a password file.
-std::vector<std::string> GetDirectoryPaths(std::string basePath) {
+// Obtains valid directories that include a password file.
+std::vector<std::string> GetDirectoryPaths(const std::string& basePath) {
 	std::vector<std::string> validPaths, ratPaths;
 	const std::string pwdFile = "\\Passwords.txt";
 
@@ -42,16 +67,15 @@ std::vector<std::string> GetDirectoryPaths(std::string basePath) {
 	return ratPaths;
 }
 
-// Returns all the formatted data into a vector of Combo's structure.
-std::vector<Combo> extractedData(std::vector<std::string> ratPaths) {
-	int i = 0;
-	size_t r = r = ratPaths.size();
+// Extracts data from password files and returns as a vector of Combo.
+std::vector<Combo> ExtractedData(std::vector<std::string> ratPaths) {
+	size_t i = 0;
+	size_t r = ratPaths.size();
 	std::vector<Combo> obtainedCombos;
 
 	for (const std::string& path : ratPaths) {
-		ConsoleTitle(std::format("RParseX 1.0.0 ~ by Serialized | Scanning Directories: {}/{}", i, r));
+		SetConsoleTitle(std::format("RParseX 1.0.0 ~ by Serialized | Scanning Directories: {}/{}", i, r));
 
-		// Obtain the data from the password file.
 		std::vector<std::string> fileContents;
 		std::string line;
 		std::ifstream inputPath(path);
@@ -62,7 +86,6 @@ std::vector<Combo> extractedData(std::vector<std::string> ratPaths) {
 
 		inputPath.close();
 
-		// Removes basically common useless lines.
 		fileContents.erase(std::remove_if(fileContents.begin(), fileContents.end(), [](const std::string& line) {
 			return (line.find("===============") != std::string::npos) || (line.find("Application") != std::string::npos);
 			}), fileContents.end());
@@ -109,6 +132,22 @@ std::vector<Combo> extractedData(std::vector<std::string> ratPaths) {
 	return obtainedCombos;
 }
 
+// Returns the current date and time as a string.
+std::string GetCurrentDateTimeString() {
+	auto now = std::chrono::system_clock::now();
+	std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
+	std::tm timeinfo;
+#ifdef _WIN32
+	localtime_s(&timeinfo, &currentTime);
+#else
+	localtime_r(&currentTime, &timeinfo);
+#endif
+	std::ostringstream oss;
+	oss << std::put_time(&timeinfo, "%Y-%m-%d_%H-%M-%S");
+	return oss.str();
+}
+
+// Creates an empty file with the given filename if it doesn't exist.
 void CreateFile(const std::string& filename) {
 	if (!fs::exists(filename)) {
 		std::ofstream file(filename);
@@ -116,17 +155,18 @@ void CreateFile(const std::string& filename) {
 	}
 }
 
-void ScanTarget(std::vector<Combo> data) { 
+
+// Scans targets and writes matching combos to target specific files (Websites.txt).
+void ScanTarget(std::vector<Combo> data) {
 	fs::path currentPath = fs::current_path();
 	std::string websiteFile = (currentPath / "Websites.txt").string();
 	std::string combosFile = (currentPath / "Combos.txt").string();
-
 	CreateFile(websiteFile);
 	CreateFile(combosFile);
 
-
 	size_t comboCount = data.size();
-	int hits = 0, i = 0;
+	size_t i = 1;
+	int hits = 0;
 
 	// Obtain targets
 	std::vector<std::string> targets;
@@ -139,30 +179,43 @@ void ScanTarget(std::vector<Combo> data) {
 
 	tFile.close();
 
-
 	for (const Combo& current : data) {
-		ConsoleTitle(std::format("RParseX 1.0.0 ~ by Serialized | Checking Targets: {}/{} | Hits Found: {}", i, comboCount, hits));
 		std::ofstream combosWrite(combosFile, std::ios::app);
 		if (combosWrite) combosWrite << FormatCombo(current) << "\n";
 
 		for (const std::string& target : targets) {
-			std::string targetsFile = (currentPath / (std::format("{}.txt", target))).string();
+			std::string targetsFile = target + ".txt";
 
 			// Check if current.Source is found in target
 			if (current.Source.find(target) != std::string::npos) {
-				std::cout << "Match found for " + target << std::endl;
-				CreateFile(targetsFile);
+				fs::path currentPath = fs::current_path();
+				std::string currentDateTime = GetCurrentDateTimeString();
+				std::filesystem::path folderPath = std::filesystem::current_path() / currentDateTime;
+				if (std::filesystem::create_directory(folderPath)) {
+				}
 
-				std::ofstream targetsWrite(targetsFile, std::ios::app);
+				if (!fs::exists(currentPath / currentDateTime / targetsFile)) {
+					std::ofstream file(currentPath / currentDateTime / targetsFile);
+					if (file) file.close();
+				}
+				std::ofstream targetsWrite(currentPath / currentDateTime / targetsFile, std::ios::app);
 				if (targetsWrite) targetsWrite << FormatCombo(current) << "\n";
+				hits++;
 			}
 		}
+
+		i++;
+		SetConsoleTitle(std::format("RParseX 1.0.0 ~ by Serialized | Checking Targets: {}/{} | Hits Found: {}", i, comboCount, hits));
 	}
-	
+
+	std::cout << std::format("Finished with: {} hits.", hits);
+	int input;
+	std::cin >> input;
 }
 
+// Main function to scrape and process data.
 void Scraper(std::string path) {
 	std::vector<std::string> paths = GetDirectoryPaths(path);
-	std::vector<Combo> data = extractedData(paths);
+	std::vector<Combo> data = ExtractedData(paths);
 	ScanTarget(data);
 }
